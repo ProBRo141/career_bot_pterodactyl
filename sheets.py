@@ -14,20 +14,30 @@ def get_client(creds_path: str):
     return gspread.authorize(creds)
 
 
+HEADERS_RU = [
+    "Дата", "Telegram", "ID", "Возраст", "Город", "Образование",
+    "Часов/нед", "Интересы", "Не нравится", "Формат работы", "Навыки", "Опыт",
+    "Коммуникация", "Цель", "Ограничения", "Приоритет", "Рекомендации", "План 14 дней",
+    "К консультации"
+]
+
+HEADERS_EN = [
+    "timestamp", "telegram_username", "telegram_id", "age", "city", "education",
+    "hours", "interests", "dislikes", "work_format", "skills", "experience",
+    "communication", "goal", "limits", "priority", "top_directions", "plan_14_days",
+    "ready_for_consultation"
+]
+
+
 def ensure_headers(sh, sheet_name="Лист1"):
     try:
         ws = sh.worksheet(sheet_name)
     except gspread.WorksheetNotFound:
-        ws = sh.add_worksheet(sheet_name, 1, 20)
+        ws = sh.add_worksheet(sheet_name, 1, 25)
     row1 = ws.row_values(1)
-    if not row1 or row1[0] != "timestamp":
-        headers = [
-            "timestamp", "telegram_username", "telegram_id", "age", "city", "education",
-            "hours", "interests", "dislikes", "work_format", "skills", "experience",
-            "communication", "goal", "limits", "priority", "top_directions", "plan_14_days",
-            "ready_for_consultation"
-        ]
-        ws.update("A1:S1", [headers])
+    if not row1 or row1[0] not in ("timestamp", "Дата"):
+        ws.update("A1:S1", [HEADERS_RU])
+        ws.format("A1:S1", {"textFormat": {"bold": True}, "wrapStrategy": "WRAP"})
     return ws
 
 
@@ -57,7 +67,15 @@ def save_result(sheet_id: str, creds_path: str, data: dict):
             data.get("plan_14_days", ""),
             data.get("ready_for_consultation", "нет"),
         ]
-        ws.append_row(row)
+        ws.append_row(row, value_input_option="USER_ENTERED")
+        last_row = len(ws.get_all_values())
+        try:
+            ws.format(f"A2:S{last_row}", {
+                "wrapStrategy": "WRAP",
+                "verticalAlignment": "TOP"
+            })
+        except Exception:
+            pass
         return True
     except Exception as e:
         logger.exception("Sheets save error: %s", e)

@@ -122,16 +122,43 @@ async def send_result_and_save(msg: Message, ctx: FSMContext, rec: dict):
         else:
             display[k] = v
 
-    top_str = ", ".join(rec.get("top_directions", [])[:5])
-    plan_str = ""
+    reasons = rec.get("reasons", {})
+    risks = rec.get("risks", {})
+    first = rec.get("first_step_24h", {})
+    top_lines = []
+    for i, d in enumerate(rec.get("top_directions", [])[:5], 1):
+        r = "; ".join(reasons.get(d, [])[:3])
+        k = "; ".join(risks.get(d, [])[:2])
+        fs = first.get(d, "")
+        line = f"{i}. {d}"
+        if r:
+            line += f"\n   Причины: {r}"
+        if k:
+            line += f"\n   Риски: {k}"
+        if fs:
+            line += f"\n   Шаг 24ч: {fs}"
+        top_lines.append(line)
+    top_str = "\n\n".join(top_lines)
+
+    plan_parts = []
     for p in rec.get("plan_14_days", [])[:14]:
-        plan_str += f"День {p.get('day')}: {p.get('task', '')}\n"
+        day = p.get("day", "?")
+        task = p.get("task", "")
+        check = p.get("check_result", "")
+        s = f"День {day}: {task}"
+        if check:
+            s += f"\n   ✓ {check}"
+        plan_parts.append(s)
+    plan_str = "\n\n".join(plan_parts)
+
+    ts = datetime.utcnow()
+    ts_str = ts.strftime("%d.%m.%Y %H:%M")
 
     row = {
-        "timestamp": datetime.utcnow().isoformat(),
-        "telegram_username": msg.from_user.username or "",
+        "timestamp": ts_str,
+        "telegram_username": f"@{msg.from_user.username}" if msg.from_user.username else str(msg.from_user.id),
         "telegram_id": msg.from_user.id,
-        **{k: str(v) for k, v in answers.items()},
+        **{k: str(v) for k, v in display.items()},
         "top_directions": top_str,
         "plan_14_days": plan_str,
         "ready_for_consultation": "да",
