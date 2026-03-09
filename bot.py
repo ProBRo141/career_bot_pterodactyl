@@ -223,7 +223,7 @@ async def cb_priority_done(cb: CallbackQuery, state: FSMContext):
     if rec:
         await send_result_and_save(cb.message, state, rec)
     else:
-        await cb.message.answer("Ошибка генерации. Попробуй /restart позже.")
+        await cb.message.answer("Ошибка генерации. Проверь GROQ_API_KEY в .env — ключ с console.groq.com. Groq может блокировать регионы, попробуй без VPN. /restart")
 
 
 @dp.callback_query(F.data.startswith("ans:priority:"))
@@ -250,7 +250,7 @@ async def cb_priority(cb: CallbackQuery, state: FSMContext):
         if rec:
             await send_result_and_save(cb.message, state, rec)
         else:
-            await cb.message.answer("Ошибка генерации. Попробуй /restart позже.")
+            await cb.message.answer("Ошибка генерации. Проверь GROQ_API_KEY в .env — ключ должен быть с console.groq.com. Если используешь VPN, отключи (Groq блокирует некоторые регионы). /restart")
     else:
         from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
         ready_kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -273,7 +273,7 @@ async def cb_ans(cb: CallbackQuery, state: FSMContext):
         if rec:
             await send_result_and_save(cb.message, state, rec)
         else:
-            await cb.message.answer("Ошибка генерации. Попробуй /restart позже.")
+            await cb.message.answer("Ошибка генерации. Проверь GROQ_API_KEY в .env — ключ должен быть с console.groq.com. Если используешь VPN, отключи (Groq блокирует некоторые регионы). /restart")
         return
     next_step = QUESTION_ORDER[idx + 1]
     await ask_question(cb.message.chat.id, next_step, state)
@@ -284,7 +284,7 @@ async def cb_ans(cb: CallbackQuery, state: FSMContext):
 async def ans_age(msg: Message, state: FSMContext):
     t = msg.text.strip()
     if not t.isdigit() or int(t) < 10 or int(t) > 100:
-        await msg.answer("Напиши возраст числом (10-100)")
+        await msg.answer("Ответь так: 25")
         return
     await state.update_data(age=t)
     await ask_question(msg.chat.id, "city", state)
