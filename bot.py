@@ -14,7 +14,7 @@ from keyboards import (
     education_kb, hours_kb, communication_kb, goal_kb, priority_kb,
     back_map, label_map,
 )
-from validation import is_too_short, get_clarify_message, validate_work_format
+from validation import is_too_short, get_clarify_message, validate_work_format, normalize_work_format
 from llm_service import get_recommendations
 from sheets import save_result as save_to_sheets
 from results_store import save_result as save_to_store, get_last_result
@@ -326,7 +326,7 @@ async def ans_work_format(msg: Message, state: FSMContext):
     if not validate_work_format(t):
         await msg.answer(get_clarify_message("work_format"))
         return
-    await state.update_data(work_format=t)
+    await state.update_data(work_format=normalize_work_format(t))
     await ask_question(msg.chat.id, "skills", state)
 
 
