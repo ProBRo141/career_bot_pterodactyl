@@ -79,20 +79,28 @@ def parse_llm_response(text: str) -> dict | None:
 
 
 def _call_gigachat(credentials: str, user_msg: str) -> dict | None:
+    import time
     from gigachat import GigaChat
     from gigachat.models import Chat, Messages, MessagesRole
+    from gigachat.exceptions import ServerError
 
-    with GigaChat(credentials=credentials, verify_ssl_certs=False, scope="GIGACHAT_API_PERS") as client:
-        chat = Chat(
-            messages=[
-                Messages(role=MessagesRole.SYSTEM, content=SYSTEM_PROMPT),
-                Messages(role=MessagesRole.USER, content=user_msg),
-            ],
-            model="GigaChat",
-        )
-        resp = client.chat(chat)
-        content = resp.choices[0].message.content
-        return parse_llm_response(content)
+    full_prompt = f"{SYSTEM_PROMPT}\n\n{user_msg}"
+    for attempt in range(3):
+        try:
+            with GigaChat(credentials=credentials, verify_ssl_certs=False, scope="GIGACHAT_API_PERS", timeout=90) as client:
+                chat = Chat(
+                    messages=[Messages(role=MessagesRole.USER, content=full_prompt)],
+                    model="GigaChat-2",
+                    max_tokens=3000,
+                )
+                resp = client.chat(chat)
+                content = resp.choices[0].message.content
+                return parse_llm_response(content)
+        except ServerError as e:
+            if e.status_code == 500 and attempt < 2:
+                time.sleep(3 * (attempt + 1))
+                continue
+            raise
 
 
 def _call_groq(api_key: str, user_msg: str) -> dict | None:
