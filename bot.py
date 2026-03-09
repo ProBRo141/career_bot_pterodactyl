@@ -327,7 +327,7 @@ async def ans_age(msg: Message, state: FSMContext):
 async def ans_city(msg: Message, state: FSMContext):
     t = msg.text.strip()
     if is_too_short("city", t):
-        await msg.answer(get_clarify_message("city") or "Напиши город и часовой пояс")
+        await msg.answer(get_clarify_message("city") or "Напиши город")
         return
     await state.update_data(city=t)
     await ask_question(msg.chat.id, "education", state)

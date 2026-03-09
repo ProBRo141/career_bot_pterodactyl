@@ -1,13 +1,13 @@
 MIN_LENGTH = 10
 CLARIFY_TEMPLATES = {
     "age": "Формат: 25",
-    "city": "Формат: Москва UTC+3",
+    "city": "Напиши название города",
     "interests": "Формат: программирование, психология, маркетинг",
     "dislikes": "Формат: бухгалтерия, холодные звонки, рутина",
     "skills": "Формат: Python, Excel, презентации, работа в команде, аналитика",
     "experience": "Формат: продажи в магазине, вожатый в лагере, курсовой проект",
     "limits": "Формат: мало времени, нужен доход, помогаю семье",
-    "work_format": "Формат: 3 5 4 1 2",
+    "work_format": "Формат: 1 5 4 1 2 (5 чисел от 1 до 5, повторы можно)",
 }
 
 
@@ -22,13 +22,14 @@ def is_too_short(key: str, text: str) -> bool:
 def validate_work_format(text: str) -> bool:
     import re
     nums = [int(m) for m in re.findall(r"\b([1-5])\b", text)]
-    return len(nums) == 5 and set(nums) == {1, 2, 3, 4, 5}
+    # 5 чисел от 1 до 5, повторы разрешены (можно поставить 1 двум категориям)
+    return len(nums) == 5 and all(1 <= n <= 5 for n in nums)
 
 
 def normalize_work_format(text: str) -> str:
     import re
     nums = [int(m) for m in re.findall(r"\b([1-5])\b", text)]
-    if len(nums) != 5 or set(nums) != {1, 2, 3, 4, 5}:
+    if len(nums) != 5 or not all(1 <= n <= 5 for n in nums):
         return text
     order = ["люди", "данные", "техника", "творчество", "управление"]
     return " ".join(f"{k}:{n}" for k, n in zip(order, nums))
