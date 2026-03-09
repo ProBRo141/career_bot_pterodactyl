@@ -1,0 +1,9 @@
+.env
+credentials.json
+bot.log
+*.pyc
+__pycache__
+fsm_state.json
+results.json
+venv
+.venv
