@@ -7,7 +7,7 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 
-from config import TELEGRAM_TOKEN, GROQ_API_KEY, CREDENTIALS_FILE, SHEET_ID
+from config import TELEGRAM_TOKEN, GROQ_API_KEY, GIGACHAT_CREDENTIALS, CREDENTIALS_FILE, SHEET_ID
 from states import Form
 from questions import QUESTIONS, QUESTION_ORDER
 from keyboards import (
@@ -219,11 +219,11 @@ async def cb_priority_done(cb: CallbackQuery, state: FSMContext):
         return
     await cb.message.answer("Генерирую рекомендации...")
     await cb.answer()
-    rec = get_recommendations(data, GROQ_API_KEY, label_map())
+    rec = get_recommendations(data, GROQ_API_KEY, label_map(), GIGACHAT_CREDENTIALS)
     if rec:
         await send_result_and_save(cb.message, state, rec)
     else:
-        await cb.message.answer("Ошибка генерации. Проверь GROQ_API_KEY в .env — ключ с console.groq.com. Groq может блокировать регионы, попробуй без VPN. /restart")
+        await cb.message.answer("Ошибка генерации. Для РФ используй GIGACHAT_CREDENTIALS (developers.sber.ru). Groq блокирует РФ. /restart")
 
 
 @dp.callback_query(F.data.startswith("ans:priority:"))
@@ -246,11 +246,11 @@ async def cb_priority(cb: CallbackQuery, state: FSMContext):
         await cb.message.answer("Генерирую рекомендации...")
         await cb.answer()
         data = await state.get_data()
-        rec = get_recommendations(data, GROQ_API_KEY, label_map())
+        rec = get_recommendations(data, GROQ_API_KEY, label_map(), GIGACHAT_CREDENTIALS)
         if rec:
             await send_result_and_save(cb.message, state, rec)
         else:
-            await cb.message.answer("Ошибка генерации. Проверь GROQ_API_KEY в .env — ключ должен быть с console.groq.com. Если используешь VPN, отключи (Groq блокирует некоторые регионы). /restart")
+            await cb.message.answer("Ошибка генерации. Для РФ: GIGACHAT_CREDENTIALS в .env (developers.sber.ru). Groq блокирует РФ. /restart")
     else:
         from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
         ready_kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -269,11 +269,11 @@ async def cb_ans(cb: CallbackQuery, state: FSMContext):
         await cb.message.answer("Генерирую рекомендации...")
         await cb.answer()
         data = await state.get_data()
-        rec = get_recommendations(data, GROQ_API_KEY, label_map())
+        rec = get_recommendations(data, GROQ_API_KEY, label_map(), GIGACHAT_CREDENTIALS)
         if rec:
             await send_result_and_save(cb.message, state, rec)
         else:
-            await cb.message.answer("Ошибка генерации. Проверь GROQ_API_KEY в .env — ключ должен быть с console.groq.com. Если используешь VPN, отключи (Groq блокирует некоторые регионы). /restart")
+            await cb.message.answer("Ошибка генерации. Для РФ: GIGACHAT_CREDENTIALS в .env (developers.sber.ru). Groq блокирует РФ. /restart")
         return
     next_step = QUESTION_ORDER[idx + 1]
     await ask_question(cb.message.chat.id, next_step, state)
@@ -284,7 +284,7 @@ async def cb_ans(cb: CallbackQuery, state: FSMContext):
 async def ans_age(msg: Message, state: FSMContext):
     t = msg.text.strip()
     if not t.isdigit() or int(t) < 10 or int(t) > 100:
-        await msg.answer("Ответь так: 25")
+        await msg.answer("Формат: 25")
         return
     await state.update_data(age=t)
     await ask_question(msg.chat.id, "city", state)
@@ -371,8 +371,11 @@ async def ans_priority_text(msg: Message, state: FSMContext):
 
 
 async def main():
-    if not TELEGRAM_TOKEN or not GROQ_API_KEY:
-        logger.error("Set TELEGRAM_BOT_TOKEN and GROQ_API_KEY in Startup Variables")
+    if not TELEGRAM_TOKEN:
+        logger.error("Set TELEGRAM_BOT_TOKEN in .env")
+        return
+    if not GIGACHAT_CREDENTIALS and not GROQ_API_KEY:
+        logger.error("Set GIGACHAT_CREDENTIALS (для РФ) или GROQ_API_KEY в .env")
         return
     await dp.start_polling(bot)
 

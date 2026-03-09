@@ -12,14 +12,15 @@
    - **App py file** — `app.py`
    - **Requirements file** — `requirements.txt`
 
-4. Добавь Startup Variables:
-   - `TELEGRAM_BOT_TOKEN` — токен от @BotFather
-   - `GROQ_API_KEY` — ключ с console.groq.com
-   - `GOOGLE_SHEET_ID` — ID таблицы (по желанию)
-   - `GOOGLE_CREDENTIALS_FILE` — `credentials.json` (по желанию)
+4. Создай `.env` в корне (File Manager):
+   - `TELEGRAM_BOT_TOKEN` — @BotFather
+   - `GIGACHAT_CREDENTIALS` — ключ с developers.sber.ru (для РФ, бесплатно)
+   - или `GROQ_API_KEY` — если сервер не в РФ
+   - `GOOGLE_SHEET_ID` — опционально
 
-5. Если используешь Google Sheets — залей `credentials.json` через File Manager
-6. Запусти сервер
+5. GigaChat: developers.sber.ru → GigaChat API → Получить ключ
+
+6. Google Sheets — залей `credentials.json` в корень. Запусти сервер
 
 ## Вариант 2: Ручная загрузка файлов
 
@@ -30,14 +31,14 @@
 5. Установи **App py file** = `app.py`
 6. При первом запуске панель выполнит `pip install -r requirements.txt`
 
-## Переменные окружения (Startup Variables)
+## Переменные (.env)
 
-| Переменная | Обязательно | Описание |
-|------------|-------------|----------|
-| TELEGRAM_BOT_TOKEN | да | Токен от @BotFather |
-| GROQ_API_KEY | да | API-ключ Groq |
-| GOOGLE_SHEET_ID | нет | ID таблицы Sheets |
-| GOOGLE_CREDENTIALS_FILE | нет | Путь к credentials.json (по умолчанию credentials.json) |
+| Переменная | Описание |
+|------------|----------|
+| TELEGRAM_BOT_TOKEN | @BotFather (обязательно) |
+| GIGACHAT_CREDENTIALS | Ключ GigaChat, developers.sber.ru — для РФ |
+| GROQ_API_KEY | Groq (блокирует РФ) |
+| GOOGLE_SHEET_ID | ID таблицы |
 
 ## Файлы
 
