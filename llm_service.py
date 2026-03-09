@@ -78,7 +78,7 @@ def parse_llm_response(text: str) -> dict | None:
         return None
 
 
-def _call_gigachat(credentials: str, user_msg: str) -> dict | None:
+def _call_gigachat(credentials: str, user_msg: str, model_override: str = None) -> dict | None:
     import time
     from gigachat import GigaChat
     from gigachat.models import Chat, Messages, MessagesRole
@@ -88,7 +88,7 @@ def _call_gigachat(credentials: str, user_msg: str) -> dict | None:
         Messages(role=MessagesRole.SYSTEM, content=SYSTEM_PROMPT),
         Messages(role=MessagesRole.USER, content=user_msg),
     ]
-    models_to_try = ["GigaChat-2", "GigaChat-2-Pro", "GigaChat"]
+    models_to_try = [model_override] if model_override else ["GigaChat-2", "GigaChat-2-Pro", "GigaChat"]
     last_err = None
     for model in models_to_try:
         for attempt in range(2):
@@ -110,32 +110,13 @@ def _call_gigachat(credentials: str, user_msg: str) -> dict | None:
     raise last_err
 
 
-def _call_groq(api_key: str, user_msg: str) -> dict | None:
-    from groq import Groq
-
-    client = Groq(api_key=api_key)
-    resp = client.chat.completions.create(
-        model="llama-3.1-8b-instant",
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_msg},
-        ],
-        temperature=0.5,
-        max_tokens=4000,
-    )
-    content = resp.choices[0].message.content
-    return parse_llm_response(content)
-
-
-def get_recommendations(answers: dict, api_key: str, value_labels: dict = None, gigachat_creds: str = None) -> dict | None:
+def get_recommendations(answers: dict, value_labels: dict = None, gigachat_creds: str = None, gigachat_model: str = None) -> dict | None:
     ctx = build_context(answers, value_labels)
     user_msg = f"Ответы анкеты:\n{ctx}\n\nСформируй рекомендации в JSON."
     try:
         if gigachat_creds:
-            return _call_gigachat(gigachat_creds, user_msg)
-        if api_key:
-            return _call_groq(api_key, user_msg)
-        logger.error("No LLM credentials: set GIGACHAT_CREDENTIALS or GROQ_API_KEY")
+            return _call_gigachat(gigachat_creds, user_msg, gigachat_model)
+        logger.error("No LLM credentials: set GIGACHAT_CREDENTIALS in .env")
         return None
     except Exception as e:
         logger.exception("LLM error: %s", e)
