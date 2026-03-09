@@ -1,4 +1,4 @@
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 from questions import EDUCATION, HOURS, COMMUNICATION, GOAL_3M, PRIORITY
 
 
@@ -62,6 +62,25 @@ def priority_kb(step: str):
     if bk:
         btns.append(bk.inline_keyboard[0])
     return InlineKeyboardMarkup(inline_keyboard=btns)
+
+
+def priority_with_done_kb(step: str):
+    btns = []
+    for val, txt in PRIORITY:
+        btns.append([InlineKeyboardButton(text=txt, callback_data=f"ans:{step}:{val}")])
+    btns.append([InlineKeyboardButton(text="Готово", callback_data="ans:priority:done")])
+    return InlineKeyboardMarkup(inline_keyboard=btns)
+
+
+def main_menu_kb():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🚀 Старт"), KeyboardButton(text="🔄 Перезапуск")],
+            [KeyboardButton(text="❓ Помощь"), KeyboardButton(text="📋 Мой результат")],
+        ],
+        resize_keyboard=True,
+        is_persistent=True,
+    )
 
 
 def back_map():

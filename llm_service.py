@@ -84,23 +84,30 @@ def _call_gigachat(credentials: str, user_msg: str) -> dict | None:
     from gigachat.models import Chat, Messages, MessagesRole
     from gigachat.exceptions import ServerError
 
-    full_prompt = f"{SYSTEM_PROMPT}\n\n{user_msg}"
-    for attempt in range(3):
-        try:
-            with GigaChat(credentials=credentials, verify_ssl_certs=False, scope="GIGACHAT_API_PERS", timeout=90) as client:
-                chat = Chat(
-                    messages=[Messages(role=MessagesRole.USER, content=full_prompt)],
-                    model="GigaChat-2",
-                    max_tokens=3000,
-                )
-                resp = client.chat(chat)
-                content = resp.choices[0].message.content
-                return parse_llm_response(content)
-        except ServerError as e:
-            if e.status_code == 500 and attempt < 2:
-                time.sleep(3 * (attempt + 1))
-                continue
-            raise
+    messages = [
+        Messages(role=MessagesRole.SYSTEM, content=SYSTEM_PROMPT),
+        Messages(role=MessagesRole.USER, content=user_msg),
+    ]
+    models_to_try = ["GigaChat-2", "GigaChat-2-Pro", "GigaChat"]
+    last_err = None
+    for model in models_to_try:
+        for attempt in range(2):
+            try:
+                with GigaChat(credentials=credentials, verify_ssl_certs=False, scope="GIGACHAT_API_PERS", timeout=90) as client:
+                    chat = Chat(messages=messages, model=model, max_tokens=3000)
+                    resp = client.chat(chat)
+                    content = resp.choices[0].message.content
+                    return parse_llm_response(content)
+            except ServerError as e:
+                last_err = e
+                if e.status_code == 500:
+                    if attempt < 1:
+                        time.sleep(2 * (attempt + 1))
+                        continue
+                    logger.warning("GigaChat 500 on model %s, trying next", model)
+                    break
+                raise
+    raise last_err
 
 
 def _call_groq(api_key: str, user_msg: str) -> dict | None:

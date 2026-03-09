@@ -11,8 +11,8 @@ from config import TELEGRAM_TOKEN, GROQ_API_KEY, GIGACHAT_CREDENTIALS, CREDENTIA
 from states import Form
 from questions import QUESTIONS, QUESTION_ORDER
 from keyboards import (
-    education_kb, hours_kb, communication_kb, goal_kb, priority_kb,
-    back_map, label_map,
+    education_kb, hours_kb, communication_kb, goal_kb, priority_kb, priority_with_done_kb,
+    back_map, label_map, main_menu_kb,
 )
 from validation import is_too_short, get_clarify_message, validate_work_format, normalize_work_format
 from llm_service import get_recommendations
@@ -188,7 +188,8 @@ async def cmd_start(msg: Message, state: FSMContext):
     await state.clear()
     await msg.answer(
         "Привет! Я помогу с профориентацией. Пройди анкету — получишь рекомендации и план на 14 дней.\n\n"
-        "Команды: /restart — заново, /help — помощь, /myresult — последний результат."
+        "Команды: /restart — заново, /help — помощь, /myresult — последний результат.",
+        reply_markup=main_menu_kb(),
     )
     await ask_question(msg.chat.id, "age", state)
 
@@ -203,10 +204,9 @@ async def cmd_help(msg: Message):
     await msg.answer(
         "Бот проводит профориентационную диагностику.\n"
         "Отвечай на вопросы — в конце получишь 3-5 направлений, причины, риски, первый шаг и план на 14 дней.\n"
-        "Можно нажать «Назад» чтобы вернуться на шаг.\n"
-        "/start — начать\n"
-        "/restart — начать заново\n"
-        "/myresult — показать последний результат"
+        "Можно нажать «Назад» чтобы вернуться на шаг.\n\n"
+        "Кнопки: Старт — начать, Перезапуск — заново, Мой результат — последний результат.",
+        reply_markup=main_menu_kb(),
     )
 
 
@@ -219,7 +219,17 @@ async def cmd_myresult(msg: Message):
     rec = res.get("recommendations", {})
     answers = res.get("answers", {})
     out = format_result(rec, answers)
-    await msg.answer(out, parse_mode="Markdown")
+    await msg.answer(out, parse_mode="Markdown", reply_markup=main_menu_kb())
+
+
+@dp.message(F.text.in_(["🚀 Старт", "🔄 Перезапуск", "❓ Помощь", "📋 Мой результат"]))
+async def menu_buttons(msg: Message, state: FSMContext):
+    if msg.text in ("🚀 Старт", "🔄 Перезапуск"):
+        await cmd_start(msg, state)
+    elif msg.text == "❓ Помощь":
+        await cmd_help(msg)
+    elif msg.text == "📋 Мой результат":
+        await cmd_myresult(msg)
 
 
 @dp.callback_query(F.data.startswith("back:"))
@@ -279,11 +289,7 @@ async def cb_priority(cb: CallbackQuery, state: FSMContext):
         else:
             await cb.message.answer("Ошибка генерации. Для РФ: GIGACHAT_CREDENTIALS в .env (developers.sber.ru). Groq блокирует РФ. /restart")
     else:
-        from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-        ready_kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="Готово", callback_data="ans:priority:done")]
-        ])
-        await cb.message.answer(f"Выбрано: {', '.join(names)}. Выбери второй или нажми Готово.", reply_markup=ready_kb)
+        await cb.message.answer(f"Выбрано: {', '.join(names)}. Выбери второй или нажми Готово.", reply_markup=priority_with_done_kb("priority"))
         await cb.answer()
 
 
