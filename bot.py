@@ -476,7 +476,7 @@ async def ans_limits(msg: Message, state: FSMContext):
     if is_too_short("limits", t):
         await msg.answer(get_clarify_message("limits"))
         return
-    await state.update_data(limits=t)
+    await state.update_data(limits=t, priority="", consultation_ready="", phone="")
     await ask_question(msg.chat.id, "priority", state)
 
 

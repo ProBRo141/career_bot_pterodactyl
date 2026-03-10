@@ -49,7 +49,10 @@ class JsonStorage(BaseStorage):
         k = self._key(key)
         if k not in self._data:
             self._data[k] = {}
-        self._data[k]["data"] = {**self._data[k].get("data", {}), **data}
+        if not data:
+            self._data[k]["data"] = {}
+        else:
+            self._data[k]["data"] = {**self._data[k].get("data", {}), **data}
         self._save()
 
     async def get_data(self, key: StorageKey) -> dict[str, Any]:
