@@ -7,7 +7,7 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 
-from config import TELEGRAM_TOKEN, GIGACHAT_CREDENTIALS, GIGACHAT_MODEL, CREDENTIALS_FILE, SHEET_ID
+from config import TELEGRAM_TOKEN, OLLAMA_BASE_URL, OLLAMA_MODEL, CREDENTIALS_FILE, SHEET_ID
 from states import Form
 from questions import QUESTIONS, QUESTION_ORDER
 from keyboards import (
@@ -81,12 +81,21 @@ async def ask_question(chat_id: int, step: str, ctx: FSMContext):
 def format_result(rec: dict, answers: dict) -> str:
     labels = label_map()
     top = rec.get("top_directions", [])[:5]
+    categories = rec.get("categories", {})
     reasons = rec.get("reasons", {})
     risks = rec.get("risks", {})
     first = rec.get("first_step_24h", {})
+    links = rec.get("learning_links", {})
     plan = rec.get("plan_14_days", [])
 
     parts = ["*РЕКОМЕНДАЦИИ*\n"]
+    if categories and isinstance(categories, dict):
+        for cat, profs in categories.items():
+            if isinstance(profs, list):
+                parts.append(f"*{cat}*")
+                for p in profs[:3]:
+                    parts.append(f"  • {str(p)}")
+                parts.append("")
     for i, d in enumerate(top, 1):
         parts.append(f"*{i}. {d}*")
         for r in reasons.get(d, [])[:3]:
@@ -96,6 +105,11 @@ def format_result(rec: dict, answers: dict) -> str:
         fs = first.get(d, "")
         if fs:
             parts.append(f"  Первый шаг за 24ч: {fs}")
+        ll = links.get(d, [])
+        if ll:
+            parts.append("  Обучение:")
+            for url in ll[:3]:
+                parts.append(f"    {url}")
         parts.append("")
 
     parts.append("*ПЛАН НА 14 ДНЕЙ*\n")
@@ -256,11 +270,11 @@ async def cb_priority_done(cb: CallbackQuery, state: FSMContext):
         return
     await cb.message.answer("Генерирую рекомендации...")
     await cb.answer()
-    rec = get_recommendations(data, label_map(), GIGACHAT_CREDENTIALS, GIGACHAT_MODEL)
+    rec = get_recommendations(data, label_map(), OLLAMA_BASE_URL, OLLAMA_MODEL)
     if rec:
         await send_result_and_save(cb.message, state, rec)
     else:
-        await cb.message.answer("Ошибка генерации. Проверь GIGACHAT_CREDENTIALS в .env (developers.sber.ru). /restart")
+        await cb.message.answer("Ошибка генерации. Проверь OLLAMA_BASE_URL и что Ollama запущена. /restart")
 
 
 @dp.callback_query(F.data.startswith("ans:priority:"))
@@ -274,22 +288,22 @@ async def cb_priority(cb: CallbackQuery, state: FSMContext):
         parts = []
     if val not in parts:
         parts.append(val)
-    if len(parts) > 2:
-        parts = parts[-2:]
+    if len(parts) > 3:
+        parts = parts[-3:]
     await state.update_data(priority=",".join(parts))
     labels = label_map()
     names = [labels.get("priority", {}).get(p, p) for p in parts]
-    if len(parts) >= 2:
+    if len(parts) >= 2:  # 2–3 приоритета
         await cb.message.answer("Генерирую рекомендации...")
         await cb.answer()
         data = await state.get_data()
-        rec = get_recommendations(data, label_map(), GIGACHAT_CREDENTIALS, GIGACHAT_MODEL)
+        rec = get_recommendations(data, label_map(), OLLAMA_BASE_URL, OLLAMA_MODEL)
         if rec:
             await send_result_and_save(cb.message, state, rec)
         else:
-            await cb.message.answer("Ошибка генерации. Проверь GIGACHAT_CREDENTIALS в .env (developers.sber.ru). /restart")
+            await cb.message.answer("Ошибка генерации. Проверь OLLAMA_BASE_URL и что Ollama запущена. /restart")
     else:
-        await cb.message.answer(f"Выбрано: {', '.join(names)}. Выбери второй или нажми Готово.", reply_markup=priority_with_done_kb("priority"))
+        await cb.message.answer(f"Выбрано: {', '.join(names)}. Выбери ещё (2–3) или нажми Готово.", reply_markup=priority_with_done_kb("priority"))
         await cb.answer()
 
 
@@ -302,11 +316,11 @@ async def cb_ans(cb: CallbackQuery, state: FSMContext):
         await cb.message.answer("Генерирую рекомендации...")
         await cb.answer()
         data = await state.get_data()
-        rec = get_recommendations(data, label_map(), GIGACHAT_CREDENTIALS, GIGACHAT_MODEL)
+        rec = get_recommendations(data, label_map(), OLLAMA_BASE_URL, OLLAMA_MODEL)
         if rec:
             await send_result_and_save(cb.message, state, rec)
         else:
-            await cb.message.answer("Ошибка генерации. Проверь GIGACHAT_CREDENTIALS в .env (developers.sber.ru). /restart")
+            await cb.message.answer("Ошибка генерации. Проверь OLLAMA_BASE_URL и что Ollama запущена. /restart")
         return
     next_step = QUESTION_ORDER[idx + 1]
     await ask_question(cb.message.chat.id, next_step, state)
@@ -400,16 +414,14 @@ async def ans_goal_text(msg: Message, state: FSMContext):
 
 @dp.message(Form.priority, F.text)
 async def ans_priority_text(msg: Message, state: FSMContext):
-    await msg.answer("Выбери 1-2 приоритета кнопками:", reply_markup=priority_kb("priority"))
+    await msg.answer("Выбери 2–3 приоритета кнопками:", reply_markup=priority_kb("priority"))
 
 
 async def main():
     if not TELEGRAM_TOKEN:
         logger.error("Set TELEGRAM_BOT_TOKEN in .env")
         return
-    if not GIGACHAT_CREDENTIALS:
-        logger.error("Set GIGACHAT_CREDENTIALS in .env (developers.sber.ru)")
-        return
+    logger.info("Ollama: %s, model: %s", OLLAMA_BASE_URL, OLLAMA_MODEL)
     await dp.start_polling(bot)
 
 
