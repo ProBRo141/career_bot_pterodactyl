@@ -41,9 +41,17 @@ def ensure_headers(sh, sheet_name="Лист1"):
             "textFormat": {"bold": True},
             "wrapStrategy": "WRAP",
             "horizontalAlignment": "CENTER",
-            "verticalAlignment": "MIDDLE",
+            "verticalAlignment": "TOP",
         })
     return ws
+
+
+def _safe_cell(value):
+    """Предотвращает формулу в Sheets: +, =, -, @ в начале."""
+    s = str(value).strip()
+    if s and s[0] in "+=-@":
+        return "'" + s
+    return s
 
 
 def save_result(sheet_id: str, creds_path: str, data: dict):
@@ -51,6 +59,7 @@ def save_result(sheet_id: str, creds_path: str, data: dict):
         gc = get_client(creds_path)
         sh = gc.open_by_key(sheet_id)
         ws = ensure_headers(sh)
+        phone_val = data.get("phone", "")
         row = [
             data.get("timestamp", datetime.utcnow().isoformat()),
             data.get("telegram_username", ""),
@@ -71,16 +80,23 @@ def save_result(sheet_id: str, creds_path: str, data: dict):
             data.get("top_directions", ""),
             data.get("plan_14_days", ""),
             data.get("ready_for_consultation", "нет"),
-            data.get("phone", ""),
+            _safe_cell(phone_val),
         ]
         ws.append_row(row, value_input_option="USER_ENTERED")
         last_row = len(ws.get_all_values())
         try:
-            ws.format(f"A1:T{last_row}", {
+            ws.format("A1:T1", {
+                "textFormat": {"bold": True},
                 "wrapStrategy": "WRAP",
                 "horizontalAlignment": "CENTER",
-                "verticalAlignment": "MIDDLE",
+                "verticalAlignment": "TOP",
             })
+            if last_row > 1:
+                ws.format(f"A2:T{last_row}", {
+                    "wrapStrategy": "WRAP",
+                    "horizontalAlignment": "CENTER",
+                    "verticalAlignment": "MIDDLE",
+                })
         except Exception:
             pass
         return True
