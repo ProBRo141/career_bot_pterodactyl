@@ -37,7 +37,12 @@ def ensure_headers(sh, sheet_name="Лист1"):
     row1 = ws.row_values(1)
     if not row1 or row1[0] not in ("timestamp", "Дата"):
         ws.update("A1:T1", [HEADERS_RU])
-        ws.format("A1:S1", {"textFormat": {"bold": True}, "wrapStrategy": "WRAP"})
+        ws.format("A1:T1", {
+            "textFormat": {"bold": True},
+            "wrapStrategy": "WRAP",
+            "horizontalAlignment": "CENTER",
+            "verticalAlignment": "MIDDLE",
+        })
     return ws
 
 
@@ -71,9 +76,10 @@ def save_result(sheet_id: str, creds_path: str, data: dict):
         ws.append_row(row, value_input_option="USER_ENTERED")
         last_row = len(ws.get_all_values())
         try:
-            ws.format(f"A2:T{last_row}", {
+            ws.format(f"A1:T{last_row}", {
                 "wrapStrategy": "WRAP",
-                "verticalAlignment": "TOP"
+                "horizontalAlignment": "CENTER",
+                "verticalAlignment": "MIDDLE",
             })
         except Exception:
             pass
