@@ -15,4 +15,6 @@ class Form(StatesGroup):
     goal = State()
     limits = State()
     priority = State()
+    consultation_ready = State()
+    phone = State()
     done = State()

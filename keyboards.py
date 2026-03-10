@@ -72,6 +72,14 @@ def priority_with_done_kb(step: str):
     return InlineKeyboardMarkup(inline_keyboard=btns)
 
 
+def consultation_kb():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Да", callback_data="ans:consultation:yes")],
+        [InlineKeyboardButton(text="Нет", callback_data="ans:consultation:no")],
+        [InlineKeyboardButton(text="← Назад", callback_data="back:consultation")],
+    ])
+
+
 def main_menu_kb():
     return ReplyKeyboardMarkup(
         keyboard=[
@@ -87,6 +95,8 @@ def back_map():
     return {
         "city": "age",
         "education": "city",
+        "consultation": "priority",
+        "phone": "consultation",
         "hours": "education",
         "interests": "hours",
         "dislikes": "interests",

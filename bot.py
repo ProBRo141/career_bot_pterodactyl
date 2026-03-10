@@ -12,7 +12,7 @@ from states import Form
 from questions import QUESTIONS, QUESTION_ORDER
 from keyboards import (
     education_kb, hours_kb, communication_kb, goal_kb, priority_kb, priority_with_done_kb,
-    back_map, label_map, main_menu_kb,
+    consultation_kb, back_map, label_map, main_menu_kb,
 )
 from validation import is_too_short, get_clarify_message, validate_work_format, normalize_work_format
 from llm_service import get_recommendations
@@ -184,6 +184,7 @@ async def send_result_and_save(msg: Message, ctx: FSMContext, rec: dict):
     ts = datetime.utcnow()
     ts_str = ts.strftime("%d.%m.%Y %H:%M")
 
+    consultation = data.get("consultation_ready", "да")
     row = {
         "timestamp": ts_str,
         "telegram_username": f"@{msg.from_user.username}" if msg.from_user.username else str(msg.from_user.id),
@@ -191,7 +192,8 @@ async def send_result_and_save(msg: Message, ctx: FSMContext, rec: dict):
         **{k: str(v) for k, v in display.items()},
         "top_directions": top_str,
         "plan_14_days": plan_str,
-        "ready_for_consultation": "да",
+        "ready_for_consultation": "да" if consultation == "yes" else "нет",
+        "phone": data.get("phone", ""),
     }
 
     if SHEET_ID and CREDENTIALS_FILE:
@@ -265,15 +267,38 @@ async def menu_buttons(msg: Message, state: FSMContext):
 @dp.callback_query(F.data.startswith("back:"))
 async def cb_back(cb: CallbackQuery, state: FSMContext):
     step = cb.data.split(":", 1)[1]
-    if step not in QUESTION_ORDER:
+    back_map_dict = back_map()
+    prev = back_map_dict.get(step)
+    if not prev:
         await cb.answer()
         return
-    idx = QUESTION_ORDER.index(step)
     data = await state.get_data()
-    for s in QUESTION_ORDER[idx:]:
-        data.pop(s, None)
+    data.pop(step, None)
+    if step == "phone":
+        data.pop("phone", None)
+    elif step == "consultation":
+        data.pop("consultation_ready", None)
     await state.set_data(data)
-    await ask_question(cb.message.chat.id, step, state)
+    if prev == "consultation":
+        await state.set_state(Form.consultation_ready)
+        await cb.message.answer(
+            "Готов ли ты к консультации с специалистом?",
+            reply_markup=consultation_kb(),
+        )
+    elif prev == "priority":
+        await state.set_state(Form.priority)
+        cur = data.get("priority", "")
+        names = [label_map().get("priority", {}).get(p.strip(), p) for p in cur.split(",") if p.strip()]
+        text = f"Выбрано: {', '.join(names) or '—'}. Выбери 2–3 или нажми Готово." if names else QUESTIONS["priority"][0]
+        await cb.message.answer(text, reply_markup=priority_with_done_kb("priority"))
+    elif prev in QUESTION_ORDER:
+        idx = QUESTION_ORDER.index(prev)
+        for s in QUESTION_ORDER[idx + 1 :]:
+            data.pop(s, None)
+        await state.set_data(data)
+        await ask_question(cb.message.chat.id, prev, state)
+    else:
+        await ask_question(cb.message.chat.id, prev, state)
     await cb.answer()
 
 
@@ -285,13 +310,43 @@ async def cb_priority_done(cb: CallbackQuery, state: FSMContext):
     if len(parts) < 2:
         await cb.answer("Выбери минимум 2 приоритета")
         return
-    await cb.message.answer("Генерирую рекомендации...")
+    await state.set_state(Form.consultation_ready)
+    await cb.message.answer(
+        "Готов ли ты к консультации с специалистом?",
+        reply_markup=consultation_kb(),
+    )
     await cb.answer()
+
+
+async def _do_generate_and_save(msg: Message, state: FSMContext):
+    await msg.answer("Генерирую рекомендации...")
+    data = await state.get_data()
     rec = get_recommendations(data, label_map(), OLLAMA_BASE_URL, OLLAMA_MODEL, OLLAMA_API_KEY)
     if rec:
-        await send_result_and_save(cb.message, state, rec)
+        await send_result_and_save(msg, state, rec)
     else:
-        await cb.message.answer("Ошибка генерации. Для облака: OLLAMA_API_KEY (ollama.com/settings/keys). Локально: Ollama запущена? /restart")
+        await msg.answer("Ошибка генерации. Для облака: OLLAMA_API_KEY (ollama.com/settings/keys). Локально: Ollama запущена? /restart")
+
+
+@dp.callback_query(F.data == "ans:consultation:no")
+async def cb_consultation_no(cb: CallbackQuery, state: FSMContext):
+    await state.update_data(consultation_ready="no")
+    await cb.answer()
+    await _do_generate_and_save(cb.message, state)
+
+
+@dp.callback_query(F.data == "ans:consultation:yes")
+async def cb_consultation_yes(cb: CallbackQuery, state: FSMContext):
+    await state.update_data(consultation_ready="yes")
+    await state.set_state(Form.phone)
+    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+    await cb.message.answer(
+        "Укажи номер телефона для связи:",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="← Назад", callback_data="back:phone")],
+        ]),
+    )
+    await cb.answer()
 
 
 @dp.callback_query(F.data.startswith("ans:priority:"))
@@ -433,6 +488,23 @@ async def ans_goal_text(msg: Message, state: FSMContext):
 @dp.message(Form.priority, F.text)
 async def ans_priority_text(msg: Message, state: FSMContext):
     await msg.answer("Выбери 2–3 приоритета кнопками:", reply_markup=priority_kb("priority"))
+
+
+@dp.message(Form.phone, F.text)
+async def ans_phone(msg: Message, state: FSMContext):
+    import re
+    t = msg.text.strip()
+    digits = re.sub(r"\D", "", t)
+    if len(digits) < 10:
+        await msg.answer("Укажи корректный номер (минимум 10 цифр). Пример: +7 999 123-45-67")
+        return
+    await state.update_data(phone=t)
+    await _do_generate_and_save(msg, state)
+
+
+@dp.message(Form.consultation_ready, F.text)
+async def ans_consultation_text(msg: Message, state: FSMContext):
+    await msg.answer("Выбери Да или Нет кнопкой:", reply_markup=consultation_kb())
 
 
 async def main():

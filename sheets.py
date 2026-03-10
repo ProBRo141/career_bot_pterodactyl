@@ -18,14 +18,14 @@ HEADERS_RU = [
     "Дата", "Telegram", "ID", "Возраст", "Город", "Образование",
     "Часов/нед", "Интересы", "Не нравится", "Формат работы", "Навыки", "Опыт",
     "Коммуникация", "Цель", "Ограничения", "Приоритет", "Рекомендации", "План 14 дней",
-    "К консультации"
+    "К консультации", "Телефон"
 ]
 
 HEADERS_EN = [
     "timestamp", "telegram_username", "telegram_id", "age", "city", "education",
     "hours", "interests", "dislikes", "work_format", "skills", "experience",
     "communication", "goal", "limits", "priority", "top_directions", "plan_14_days",
-    "ready_for_consultation"
+    "ready_for_consultation", "phone"
 ]
 
 
@@ -36,7 +36,7 @@ def ensure_headers(sh, sheet_name="Лист1"):
         ws = sh.add_worksheet(sheet_name, 1, 25)
     row1 = ws.row_values(1)
     if not row1 or row1[0] not in ("timestamp", "Дата"):
-        ws.update("A1:S1", [HEADERS_RU])
+        ws.update("A1:T1", [HEADERS_RU])
         ws.format("A1:S1", {"textFormat": {"bold": True}, "wrapStrategy": "WRAP"})
     return ws
 
@@ -66,11 +66,12 @@ def save_result(sheet_id: str, creds_path: str, data: dict):
             data.get("top_directions", ""),
             data.get("plan_14_days", ""),
             data.get("ready_for_consultation", "нет"),
+            data.get("phone", ""),
         ]
         ws.append_row(row, value_input_option="USER_ENTERED")
         last_row = len(ws.get_all_values())
         try:
-            ws.format(f"A2:S{last_row}", {
+            ws.format(f"A2:T{last_row}", {
                 "wrapStrategy": "WRAP",
                 "verticalAlignment": "TOP"
             })
