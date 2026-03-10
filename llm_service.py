@@ -130,12 +130,16 @@ def get_recommendations(
     ollama_model: str = None,
     ollama_api_key: str = None,
 ) -> dict | None:
+    import time
+
     base_url = (ollama_base_url or "https://ollama.com").rstrip("/")
     model = ollama_model or "gpt-oss:20b"
     ctx = build_context(answers, value_labels)
     user_msg = f"Ответы анкеты:\n{ctx}\n\nСформируй персональные рекомендации в JSON. Не забудь про опыт, категории и ссылки на обучение."
-    try:
-        return _call_ollama(base_url, model, SYSTEM_PROMPT, user_msg, ollama_api_key)
-    except Exception as e:
-        logger.exception("LLM error: %s", e)
-        return None
+    for attempt in range(3):
+        result = _call_ollama(base_url, model, SYSTEM_PROMPT, user_msg, ollama_api_key)
+        if result:
+            return result
+        if attempt < 2:
+            time.sleep(2 + attempt * 2)
+    return None

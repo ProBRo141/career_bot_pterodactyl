@@ -126,19 +126,30 @@ def format_result(rec: dict, answers: dict) -> str:
 
 
 async def send_long_message(msg: Message, text: str, reply_markup=None):
-    """Telegram limit 4096 — разбиваем длинное сообщение."""
+    """Telegram limit 4096. При ошибке Markdown — отправка без форматирования."""
+    from aiogram.exceptions import TelegramBadRequest
+
     MAX_LEN = 4000
+    sent = 0
     while text:
-        if len(text) <= MAX_LEN:
-            await msg.answer(text, parse_mode="Markdown", reply_markup=reply_markup)
-            break
-        cut = text.rfind("\n", 0, MAX_LEN + 1)
-        if cut <= 0:
-            cut = MAX_LEN
-        chunk, text = text[:cut].strip(), text[cut:].strip()
-        if chunk:
-            await msg.answer(chunk, parse_mode="Markdown")
-        reply_markup = None  # только к последнему блоку
+        chunk = text[:MAX_LEN] if len(text) > MAX_LEN else text
+        if len(text) > MAX_LEN:
+            cut = text.rfind("\n", 0, MAX_LEN + 1)
+            if cut > 0:
+                chunk, text = text[:cut].strip(), text[cut:].strip()
+            else:
+                chunk, text = text[:MAX_LEN], text[MAX_LEN:]
+        else:
+            text = ""
+        if not chunk.strip():
+            continue
+        use_markup = reply_markup if sent == 0 and not text else None
+        try:
+            await msg.answer(chunk, parse_mode="Markdown", reply_markup=use_markup)
+        except TelegramBadRequest:
+            await msg.answer(chunk, reply_markup=use_markup)
+        reply_markup = None
+        sent += 1
 
 
 async def send_result_and_save(msg: Message, ctx: FSMContext, rec: dict):
@@ -216,7 +227,13 @@ async def send_result_and_save(msg: Message, ctx: FSMContext, rec: dict):
     await ctx.clear()
 
     out = format_result(rec, answers)
-    await send_long_message(msg, out)
+    try:
+        await send_long_message(msg, out)
+    except Exception as e:
+        logger.exception("Send result error: %s", e)
+        await msg.answer(
+            "Результат сохранён, но отображение не удалось. Нажми /myresult чтобы увидеть рекомендации."
+        )
 
 
 @dp.message(Command("start"))
@@ -329,7 +346,10 @@ async def _do_generate_and_save(msg: Message, state: FSMContext):
     if rec:
         await send_result_and_save(msg, state, rec)
     else:
-        await msg.answer("Ошибка генерации. Для облака: OLLAMA_API_KEY (ollama.com/settings/keys). Локально: Ollama запущена? /restart")
+        await msg.answer(
+            "Сервис временно недоступен. Попробуй /restart через минуту. "
+            "Если используешь облако — проверь OLLAMA_API_KEY на ollama.com/settings/keys"
+        )
 
 
 @dp.callback_query(F.data == "ans:consultation:no")
@@ -397,7 +417,10 @@ async def cb_ans(cb: CallbackQuery, state: FSMContext):
         if rec:
             await send_result_and_save(cb.message, state, rec)
         else:
-            await cb.message.answer("Ошибка генерации. Для облака: OLLAMA_API_KEY (ollama.com/settings/keys). Локально: Ollama запущена? /restart")
+            await cb.message.answer(
+                "Сервис временно недоступен. Попробуй /restart через минуту. "
+                "Облако: проверь OLLAMA_API_KEY на ollama.com/settings/keys"
+            )
         return
     next_step = QUESTION_ORDER[idx + 1]
     await ask_question(cb.message.chat.id, next_step, state)
