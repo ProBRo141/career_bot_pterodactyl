@@ -125,6 +125,22 @@ def format_result(rec: dict, answers: dict) -> str:
     return "\n".join(parts)
 
 
+async def send_long_message(msg: Message, text: str, reply_markup=None):
+    """Telegram limit 4096 — разбиваем длинное сообщение."""
+    MAX_LEN = 4000
+    while text:
+        if len(text) <= MAX_LEN:
+            await msg.answer(text, parse_mode="Markdown", reply_markup=reply_markup)
+            break
+        cut = text.rfind("\n", 0, MAX_LEN + 1)
+        if cut <= 0:
+            cut = MAX_LEN
+        chunk, text = text[:cut].strip(), text[cut:].strip()
+        if chunk:
+            await msg.answer(chunk, parse_mode="Markdown")
+        reply_markup = None  # только к последнему блоку
+
+
 async def send_result_and_save(msg: Message, ctx: FSMContext, rec: dict):
     data = await ctx.get_data()
     answers = {k: v for k, v in data.items() if k in QUESTION_ORDER}
@@ -194,7 +210,7 @@ async def send_result_and_save(msg: Message, ctx: FSMContext, rec: dict):
     await ctx.clear()
 
     out = format_result(rec, answers)
-    await msg.answer(out, parse_mode="Markdown")
+    await send_long_message(msg, out)
 
 
 @dp.message(Command("start"))
@@ -233,7 +249,7 @@ async def cmd_myresult(msg: Message):
     rec = res.get("recommendations", {})
     answers = res.get("answers", {})
     out = format_result(rec, answers)
-    await msg.answer(out, parse_mode="Markdown", reply_markup=main_menu_kb())
+    await send_long_message(msg, out, main_menu_kb())
 
 
 @dp.message(F.text.in_(["🚀 Старт", "🔄 Перезапуск", "❓ Помощь", "📋 Мой результат"]))
@@ -265,8 +281,9 @@ async def cb_back(cb: CallbackQuery, state: FSMContext):
 async def cb_priority_done(cb: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     cur = data.get("priority", "")
-    if not cur:
-        await cb.answer("Выбери хотя бы один приоритет")
+    parts = [p.strip() for p in cur.split(",") if p.strip()] if cur else []
+    if len(parts) < 2:
+        await cb.answer("Выбери минимум 2 приоритета")
         return
     await cb.message.answer("Генерирую рекомендации...")
     await cb.answer()
@@ -286,6 +303,9 @@ async def cb_priority(cb: CallbackQuery, state: FSMContext):
         parts = [p.strip() for p in cur.split(",") if p.strip()]
     else:
         parts = []
+    if val == "done":
+        await cb.answer()
+        return
     if val not in parts:
         parts.append(val)
     if len(parts) > 3:
@@ -293,18 +313,11 @@ async def cb_priority(cb: CallbackQuery, state: FSMContext):
     await state.update_data(priority=",".join(parts))
     labels = label_map()
     names = [labels.get("priority", {}).get(p, p) for p in parts]
-    if len(parts) >= 2:  # 2–3 приоритета
-        await cb.message.answer("Генерирую рекомендации...")
-        await cb.answer()
-        data = await state.get_data()
-        rec = get_recommendations(data, label_map(), OLLAMA_BASE_URL, OLLAMA_MODEL, OLLAMA_API_KEY)
-        if rec:
-            await send_result_and_save(cb.message, state, rec)
-        else:
-            await cb.message.answer("Ошибка генерации. Для облака: OLLAMA_API_KEY (ollama.com/settings/keys). Локально: Ollama запущена? /restart")
-    else:
-        await cb.message.answer(f"Выбрано: {', '.join(names)}. Выбери ещё (2–3) или нажми Готово.", reply_markup=priority_with_done_kb("priority"))
-        await cb.answer()
+    await cb.message.answer(
+        f"Выбрано: {', '.join(names)}. Выбери ещё (2–3 всего) или нажми Готово.",
+        reply_markup=priority_with_done_kb("priority"),
+    )
+    await cb.answer()
 
 
 @dp.callback_query(F.data.startswith("ans:"))
