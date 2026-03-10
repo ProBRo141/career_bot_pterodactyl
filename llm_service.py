@@ -95,7 +95,7 @@ def parse_llm_response(text: str) -> dict | None:
         return None
 
 
-def _call_ollama(base_url: str, model: str, system: str, user_msg: str) -> dict | None:
+def _call_ollama(base_url: str, model: str, system: str, user_msg: str, api_key: str = None) -> dict | None:
     import httpx
 
     url = f"{base_url.rstrip('/')}/api/chat"
@@ -108,9 +108,12 @@ def _call_ollama(base_url: str, model: str, system: str, user_msg: str) -> dict 
         "stream": False,
         "options": {"temperature": 0.7, "num_predict": 4000},
     }
+    headers = {}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
     try:
         with httpx.Client(timeout=120.0) as client:
-            resp = client.post(url, json=payload)
+            resp = client.post(url, json=payload, headers=headers or None)
             resp.raise_for_status()
             data = resp.json()
             content = data.get("message", {}).get("content", "")
@@ -125,13 +128,14 @@ def get_recommendations(
     value_labels: dict = None,
     ollama_base_url: str = None,
     ollama_model: str = None,
+    ollama_api_key: str = None,
 ) -> dict | None:
-    base_url = (ollama_base_url or "http://localhost:11434").rstrip("/")
-    model = ollama_model or "llama3.2"
+    base_url = (ollama_base_url or "https://ollama.com").rstrip("/")
+    model = ollama_model or "gpt-oss:20b"
     ctx = build_context(answers, value_labels)
     user_msg = f"Ответы анкеты:\n{ctx}\n\nСформируй персональные рекомендации в JSON. Не забудь про опыт, категории и ссылки на обучение."
     try:
-        return _call_ollama(base_url, model, SYSTEM_PROMPT, user_msg)
+        return _call_ollama(base_url, model, SYSTEM_PROMPT, user_msg, ollama_api_key)
     except Exception as e:
         logger.exception("LLM error: %s", e)
         return None

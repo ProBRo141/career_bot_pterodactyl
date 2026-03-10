@@ -7,7 +7,7 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 
-from config import TELEGRAM_TOKEN, OLLAMA_BASE_URL, OLLAMA_MODEL, CREDENTIALS_FILE, SHEET_ID
+from config import TELEGRAM_TOKEN, OLLAMA_BASE_URL, OLLAMA_MODEL, OLLAMA_API_KEY, CREDENTIALS_FILE, SHEET_ID
 from states import Form
 from questions import QUESTIONS, QUESTION_ORDER
 from keyboards import (
@@ -270,11 +270,11 @@ async def cb_priority_done(cb: CallbackQuery, state: FSMContext):
         return
     await cb.message.answer("Генерирую рекомендации...")
     await cb.answer()
-    rec = get_recommendations(data, label_map(), OLLAMA_BASE_URL, OLLAMA_MODEL)
+    rec = get_recommendations(data, label_map(), OLLAMA_BASE_URL, OLLAMA_MODEL, OLLAMA_API_KEY)
     if rec:
         await send_result_and_save(cb.message, state, rec)
     else:
-        await cb.message.answer("Ошибка генерации. Проверь OLLAMA_BASE_URL и что Ollama запущена. /restart")
+        await cb.message.answer("Ошибка генерации. Для облака: OLLAMA_API_KEY (ollama.com/settings/keys). Локально: Ollama запущена? /restart")
 
 
 @dp.callback_query(F.data.startswith("ans:priority:"))
@@ -297,11 +297,11 @@ async def cb_priority(cb: CallbackQuery, state: FSMContext):
         await cb.message.answer("Генерирую рекомендации...")
         await cb.answer()
         data = await state.get_data()
-        rec = get_recommendations(data, label_map(), OLLAMA_BASE_URL, OLLAMA_MODEL)
+        rec = get_recommendations(data, label_map(), OLLAMA_BASE_URL, OLLAMA_MODEL, OLLAMA_API_KEY)
         if rec:
             await send_result_and_save(cb.message, state, rec)
         else:
-            await cb.message.answer("Ошибка генерации. Проверь OLLAMA_BASE_URL и что Ollama запущена. /restart")
+            await cb.message.answer("Ошибка генерации. Для облака: OLLAMA_API_KEY (ollama.com/settings/keys). Локально: Ollama запущена? /restart")
     else:
         await cb.message.answer(f"Выбрано: {', '.join(names)}. Выбери ещё (2–3) или нажми Готово.", reply_markup=priority_with_done_kb("priority"))
         await cb.answer()
@@ -316,11 +316,11 @@ async def cb_ans(cb: CallbackQuery, state: FSMContext):
         await cb.message.answer("Генерирую рекомендации...")
         await cb.answer()
         data = await state.get_data()
-        rec = get_recommendations(data, label_map(), OLLAMA_BASE_URL, OLLAMA_MODEL)
+        rec = get_recommendations(data, label_map(), OLLAMA_BASE_URL, OLLAMA_MODEL, OLLAMA_API_KEY)
         if rec:
             await send_result_and_save(cb.message, state, rec)
         else:
-            await cb.message.answer("Ошибка генерации. Проверь OLLAMA_BASE_URL и что Ollama запущена. /restart")
+            await cb.message.answer("Ошибка генерации. Для облака: OLLAMA_API_KEY (ollama.com/settings/keys). Локально: Ollama запущена? /restart")
         return
     next_step = QUESTION_ORDER[idx + 1]
     await ask_question(cb.message.chat.id, next_step, state)
@@ -420,6 +420,9 @@ async def ans_priority_text(msg: Message, state: FSMContext):
 async def main():
     if not TELEGRAM_TOKEN:
         logger.error("Set TELEGRAM_BOT_TOKEN in .env")
+        return
+    if "ollama.com" in (OLLAMA_BASE_URL or "") and not OLLAMA_API_KEY:
+        logger.error("OLLAMA_API_KEY required for Ollama Cloud. Get key at ollama.com/settings/keys")
         return
     logger.info("Ollama: %s, model: %s", OLLAMA_BASE_URL, OLLAMA_MODEL)
     await dp.start_polling(bot)
