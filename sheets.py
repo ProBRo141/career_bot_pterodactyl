@@ -95,7 +95,7 @@ def save_result(sheet_id: str, creds_path: str, data: dict):
                 ws.format(f"A2:T{last_row}", {
                     "wrapStrategy": "WRAP",
                     "horizontalAlignment": "CENTER",
-                    "verticalAlignment": "MIDDLE",
+                    "verticalAlignment": "TOP",
                 })
         except Exception:
             pass

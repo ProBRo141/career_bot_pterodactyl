@@ -148,7 +148,11 @@ async def send_result_and_save(msg: Message, ctx: FSMContext, rec: dict):
     display = {}
     for k, v in answers.items():
         if k in labels and isinstance(v, str):
-            display[k] = labels[k].get(v, v)
+            if "," in v:
+                parts = [labels[k].get(p.strip(), p.strip()) for p in v.split(",")]
+                display[k] = ", ".join(parts)
+            else:
+                display[k] = labels[k].get(v, v)
         else:
             display[k] = v
 
