@@ -297,26 +297,31 @@ async def cb_priority_done(cb: CallbackQuery, state: FSMContext):
 @dp.callback_query(F.data.startswith("ans:priority:"))
 async def cb_priority(cb: CallbackQuery, state: FSMContext):
     val = cb.data.split(":", 2)[2]
-    data = await state.get_data()
-    cur = data.get("priority", "")
-    if isinstance(cur, str) and cur:
-        parts = [p.strip() for p in cur.split(",") if p.strip()]
-    else:
-        parts = []
     if val == "done":
         await cb.answer()
         return
-    if val not in parts:
+    data = await state.get_data()
+    cur = data.get("priority", "")
+    parts = [p.strip() for p in cur.split(",") if p.strip()] if cur else []
+    if val in parts:
+        parts.remove(val)
+    else:
         parts.append(val)
     if len(parts) > 3:
         parts = parts[-3:]
     await state.update_data(priority=",".join(parts))
     labels = label_map()
     names = [labels.get("priority", {}).get(p, p) for p in parts]
-    await cb.message.answer(
-        f"Выбрано: {', '.join(names)}. Выбери ещё (2–3 всего) или нажми Готово.",
-        reply_markup=priority_with_done_kb("priority"),
-    )
+    try:
+        await cb.message.edit_text(
+            f"Выбрано: {', '.join(names) or '—'}. Выбери 2–3 или нажми Готово.",
+            reply_markup=priority_with_done_kb("priority"),
+        )
+    except Exception:
+        await cb.message.answer(
+            f"Выбрано: {', '.join(names) or '—'}. Выбери 2–3 или нажми Готово.",
+            reply_markup=priority_with_done_kb("priority"),
+        )
     await cb.answer()
 
 
