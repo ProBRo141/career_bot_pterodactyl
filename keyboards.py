@@ -80,11 +80,15 @@ def consultation_kb():
     ])
 
 
+HIDE_MENU_BTN = "⬇ Скрыть меню"
+
+
 def main_menu_kb():
     return ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text="🚀 Старт"), KeyboardButton(text="🔄 Перезапуск")],
             [KeyboardButton(text="❓ Помощь"), KeyboardButton(text="📋 Мой результат")],
+            [KeyboardButton(text=HIDE_MENU_BTN)],
         ],
         resize_keyboard=True,
         is_persistent=True,

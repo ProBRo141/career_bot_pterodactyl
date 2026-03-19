@@ -3,7 +3,7 @@ import logging
 from datetime import datetime
 
 from aiogram import Bot, Dispatcher, F
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 
@@ -12,7 +12,7 @@ from states import Form
 from questions import QUESTIONS, QUESTION_ORDER
 from keyboards import (
     education_kb, hours_kb, communication_kb, goal_kb, priority_kb, priority_with_done_kb,
-    consultation_kb, back_map, label_map, main_menu_kb,
+    consultation_kb, back_map, label_map, main_menu_kb, HIDE_MENU_BTN,
 )
 from validation import is_too_short, get_clarify_message, validate_work_format, normalize_work_format
 from llm_service import get_recommendations
@@ -152,7 +152,8 @@ async def send_long_message(msg: Message, text: str, reply_markup=None):
         sent += 1
 
 
-async def send_result_and_save(msg: Message, ctx: FSMContext, rec: dict):
+async def send_result_and_save(msg: Message, ctx: FSMContext, rec: dict, from_user=None):
+    user = from_user or msg.from_user
     data = await ctx.get_data()
     answers = {k: v for k, v in data.items() if k in QUESTION_ORDER}
     labels = label_map()
@@ -202,8 +203,8 @@ async def send_result_and_save(msg: Message, ctx: FSMContext, rec: dict):
     consultation = data.get("consultation_ready", "да")
     row = {
         "timestamp": ts_str,
-        "telegram_username": f"@{msg.from_user.username}" if msg.from_user.username else str(msg.from_user.id),
-        "telegram_id": msg.from_user.id,
+        "telegram_username": f"@{user.username}" if getattr(user, "username", None) else str(user.id),
+        "telegram_id": user.id,
         **{k: str(v) for k, v in display.items()},
         "top_directions": top_str,
         "plan_14_days": plan_str,
@@ -222,7 +223,7 @@ async def send_result_and_save(msg: Message, ctx: FSMContext, rec: dict):
         "recommendations": rec,
         "timestamp": datetime.utcnow().isoformat(),
     }
-    save_to_store(msg.from_user.id, result_for_store)
+    save_to_store(user.id, result_for_store)
     await ctx.set_state(Form.done)
     await ctx.clear()
 
@@ -273,6 +274,14 @@ async def cmd_myresult(msg: Message):
     answers = res.get("answers", {})
     out = format_result(rec, answers)
     await send_long_message(msg, out, main_menu_kb())
+
+
+@dp.message(F.text == HIDE_MENU_BTN)
+async def hide_menu(msg: Message):
+    await msg.answer(
+        "Меню скрыто. Чтобы вернуть кнопки — нажми /start",
+        reply_markup=ReplyKeyboardRemove(remove_keyboard=True),
+    )
 
 
 @dp.message(F.text.in_(["🚀 Старт", "🔄 Перезапуск", "❓ Помощь", "📋 Мой результат"]))
@@ -339,12 +348,12 @@ async def cb_priority_done(cb: CallbackQuery, state: FSMContext):
     await cb.answer()
 
 
-async def _do_generate_and_save(msg: Message, state: FSMContext):
+async def _do_generate_and_save(msg: Message, state: FSMContext, from_user=None):
     await msg.answer("Генерирую рекомендации...")
     data = await state.get_data()
     rec = get_recommendations(data, label_map(), OLLAMA_BASE_URL, OLLAMA_MODEL, OLLAMA_API_KEY)
     if rec:
-        await send_result_and_save(msg, state, rec)
+        await send_result_and_save(msg, state, rec, from_user=from_user)
     else:
         await msg.answer(
             "Сервис временно недоступен. Попробуй /restart через минуту. "
@@ -356,7 +365,7 @@ async def _do_generate_and_save(msg: Message, state: FSMContext):
 async def cb_consultation_no(cb: CallbackQuery, state: FSMContext):
     await state.update_data(consultation_ready="no")
     await cb.answer()
-    await _do_generate_and_save(cb.message, state)
+    await _do_generate_and_save(cb.message, state, from_user=cb.from_user)
 
 
 @dp.callback_query(F.data == "ans:consultation:yes")
@@ -415,7 +424,7 @@ async def cb_ans(cb: CallbackQuery, state: FSMContext):
         data = await state.get_data()
         rec = get_recommendations(data, label_map(), OLLAMA_BASE_URL, OLLAMA_MODEL, OLLAMA_API_KEY)
         if rec:
-            await send_result_and_save(cb.message, state, rec)
+            await send_result_and_save(cb.message, state, rec, from_user=cb.from_user)
         else:
             await cb.message.answer(
                 "Сервис временно недоступен. Попробуй /restart через минуту. "
