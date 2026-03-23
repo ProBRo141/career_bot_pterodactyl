@@ -59,6 +59,8 @@
 ```
 TELEGRAM_BOT_TOKEN=твой_токен
 OLLAMA_API_KEY=твой_ключ_с_ollama.com
+# Если api.telegram.org заблокирован на хостинге:
+# PROXY=socks5://host:port
 ```
 
 По умолчанию: `OLLAMA_BASE_URL=https://ollama.com`, `OLLAMA_MODEL=gpt-oss:20b`.
@@ -114,6 +116,7 @@ python app.py
 | OLLAMA_MODEL       | Нет         | Облако: `gpt-oss:20b`, `gpt-oss:120b`. Локально: `llama3.2` и др. |
 | GOOGLE_SHEET_ID    | Нет         | ID таблицы Google Sheets             |
 | GOOGLE_CREDENTIALS_FILE | Нет   | Путь к `credentials.json`            |
+| PROXY              | Нет         | Прокси для api.telegram.org. По умолчанию — SOCKS5 для заблокированных хостингов. Чтобы отключить: `PROXY=` |
 
 ---
 
@@ -128,6 +131,28 @@ python app.py
 
 - Проверь `TELEGRAM_BOT_TOKEN`.
 - Логи: `bot.log` или вывод консоли.
+
+### «Cannot connect to host api.telegram.org» / «SSL handshake timeout»
+
+Хостинг (часто в РФ) блокирует Telegram API. **Решение — прокси.**
+
+1. Возьми SOCKS5-прокси (платный или бесплатный). Примеры сервисов: VPN-провайдеры с SOCKS5, выделенные прокси.
+2. Добавь в `.env`:
+   ```
+   PROXY=socks5://хост:порт
+   ```
+   Или с логином/паролем: `PROXY=socks5://логин:пароль@хост:порт`
+3. Перезапусти бота. В логах появится «Using proxy for Telegram API».
+
+**Альтернатива:** развернуть бота на VPS за рубежом (EU, US), где api.telegram.org не блокируют.
+
+### MTProxy из t.me/proxy не подойдёт
+
+Ссылки вида `t.me/proxy?server=...&port=...&secret=...` — это **MTProxy** (для Telegram-клиентов). Бот использует **api.telegram.org** по HTTPS и требует **SOCKS5** или **HTTP** прокси. MTProxy несовместим с Bot API.
+
+### Zapret на хостинге
+
+Если включён **zapret**, он может уже обходить блокировки. Сначала запусти бота **без** PROXY. Если ошибка сохранится — настрой SOCKS5/HTTP прокси.
 
 ---
 

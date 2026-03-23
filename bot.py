@@ -3,11 +3,12 @@ import logging
 from datetime import datetime
 
 from aiogram import Bot, Dispatcher, F
+from aiogram.exceptions import TelegramNetworkError
 from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 
-from config import TELEGRAM_TOKEN, OLLAMA_BASE_URL, OLLAMA_MODEL, OLLAMA_API_KEY, CREDENTIALS_FILE, SHEET_ID
+from config import TELEGRAM_TOKEN, PROXY, OLLAMA_BASE_URL, OLLAMA_MODEL, OLLAMA_API_KEY, CREDENTIALS_FILE, SHEET_ID
 from states import Form
 from questions import QUESTIONS, QUESTION_ORDER
 from keyboards import (
@@ -32,7 +33,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-bot = Bot(token=TELEGRAM_TOKEN)
+
+def _create_bot():
+    if PROXY:
+        from aiogram.client.session.aiohttp import AiohttpSession
+        session = AiohttpSession(proxy=PROXY)
+        return Bot(token=TELEGRAM_TOKEN, session=session)
+    return Bot(token=TELEGRAM_TOKEN)
+
+
+bot = _create_bot()  # используется при старте; при ретрае создаём новый
 dp = Dispatcher(storage=JsonStorage())
 
 STATE_MAP = {
@@ -551,7 +561,25 @@ async def main():
         logger.error("OLLAMA_API_KEY required for Ollama Cloud. Get key at ollama.com/settings/keys")
         return
     logger.info("Ollama: %s, model: %s", OLLAMA_BASE_URL, OLLAMA_MODEL)
-    await dp.start_polling(bot)
+    if PROXY:
+        logger.info("Using proxy for Telegram API")
+    retry_delay = 30
+    current_bot = bot
+    while True:
+        try:
+            await dp.start_polling(current_bot)
+            break
+        except TelegramNetworkError as e:
+            logger.warning(
+                "Telegram API недоступен (блокировка?): %s. Повтор через %d сек. "
+                "Если хостинг блокирует Telegram — добавь PROXY в .env (socks5://...)",
+                e, retry_delay,
+            )
+            await asyncio.sleep(retry_delay)
+            retry_delay = min(retry_delay + 30, 300)
+            current_bot = _create_bot()  # новая сессия для ретрая
+        except asyncio.CancelledError:
+            raise
 
 
 if __name__ == "__main__":
