@@ -116,7 +116,7 @@ python app.py
 | OLLAMA_MODEL       | Нет         | Облако: `gpt-oss:20b`, `gpt-oss:120b`. Локально: `llama3.2` и др. |
 | GOOGLE_SHEET_ID    | Нет         | ID таблицы Google Sheets             |
 | GOOGLE_CREDENTIALS_FILE | Нет   | Путь к `credentials.json`            |
-| PROXY              | Нет         | Прокси для api.telegram.org. По умолчанию — SOCKS5 для заблокированных хостингов. Чтобы отключить: `PROXY=` |
+| PROXY              | Нет         | SOCKS5/HTTP прокси для api.telegram.org (если хостинг блокирует). Пример: `socks5://host:port` |
 
 ---
 

@@ -577,7 +577,14 @@ async def main():
             )
             await asyncio.sleep(retry_delay)
             retry_delay = min(retry_delay + 30, 300)
-            current_bot = _create_bot()  # новая сессия для ретрая
+            current_bot = _create_bot()
+        except Exception as e:
+            if type(e).__name__ == "ProxyConnectionError":
+                logger.error(
+                    "Прокси недоступен: %s. Убери PROXY из .env или укажи рабочий SOCKS5.",
+                    e,
+                )
+            raise
         except asyncio.CancelledError:
             raise
 
